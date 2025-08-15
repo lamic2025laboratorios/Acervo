@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acervo de Planilhas LAMIC</title>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body {
             background-color: #f9fafb;
@@ -14,18 +13,30 @@
             display: flex;
             flex-direction: column;
         }
-        header {
+        .navy-blue {
             background-color: #1e3a8a;
-            color: white;
-            padding: 16px 0;
         }
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 16px;
+            width: 100%;
+            max-width: 1280px;
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+        header {
+            color: white;
+            padding-top: 16px;
+            padding-bottom: 16px;
+        }
+        header .container {
             display: flex;
             align-items: center;
             justify-content: space-between;
+        }
+        header .flex {
+            display: flex;
+            align-items: center;
         }
         header img {
             height: 48px;
@@ -35,17 +46,17 @@
             font-size: 24px;
             font-weight: bold;
         }
-        nav {
+        header nav {
             display: flex;
             gap: 8px;
         }
         .nav-item {
             padding: 8px 16px;
             border-radius: 6px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            font-weight: 500;
             color: white;
             text-decoration: none;
-            font-weight: 500;
-            transition: background-color 0.3s ease, transform 0.2s ease;
         }
         .nav-item:hover {
             background-color: #2b6cb0;
@@ -53,25 +64,38 @@
         }
         main {
             flex-grow: 1;
-            padding: 32px 0;
+            padding-top: 32px;
+            padding-bottom: 32px;
+        }
+        .search-section {
+            margin-bottom: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 768px) {
+            .search-section {
+                flex-direction: row;
+            }
         }
         .search-bar {
             max-width: 600px;
+            width: 100%;
             padding: 12px;
             border: 1px solid #d1d5db;
             border-radius: 8px;
-            width: 100%;
-            box-sizing: border-box;
+            outline: none;
         }
         .search-bar:focus {
-            outline: none;
             border-color: #1e3a8a;
             box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.5);
         }
         .dropdown {
             position: relative;
         }
-        .dropdown-button {
+        .dropdown button {
             padding: 12px;
             background-color: #1e3a8a;
             color: white;
@@ -80,17 +104,17 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
-        .dropdown-button:hover {
+        .dropdown button:hover {
             background-color: #2b6cb0;
         }
         .dropdown-content {
             display: none;
             position: absolute;
-            background-color: white;
+            background-color: #ffffff;
             min-width: 160px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.1);
             z-index: 1;
+            border-radius: 8px;
         }
         .dropdown:hover .dropdown-content {
             display: block;
@@ -98,32 +122,58 @@
         .dropdown-content a {
             display: block;
             padding: 8px 16px;
-            color: #1f2937;
             text-decoration: none;
+            color: black;
+        }
+        .dropdown-content a.bg-blue {
+            background-color: #dbeafe;
+        }
+        .dropdown-content a.bg-blue:hover {
+            background-color: #bfdbfe;
+        }
+        .dropdown-content a.bg-green {
+            background-color: #d1fae5;
+        }
+        .dropdown-content a.bg-green:hover {
+            background-color: #a7f3d0;
         }
         .dropdown-content a:hover {
-            background-color: #e5e7eb;
+            background-color: #f3f4f6;
         }
-        .modern-button {
-            display: inline-block;
-            padding: 12px 24px;
-            background-color: #1e3a8a;
+        .action-button {
+            padding: 12px;
             color: white;
-            border-radius: 6px;
-            text-decoration: none;
-            transition: background-color 0.3s ease, transform 0.2s ease;
+            border-radius: 8px;
             border: none;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
-        .modern-button:hover {
-            background-color: #2b6cb0;
-            transform: scale(1.05);
-        }
-        .add-button {
+        #addSpreadsheetBtn {
             background-color: #16a34a;
         }
-        .add-button:hover {
+        #addSpreadsheetBtn:hover {
             background-color: #15803d;
+        }
+        #addSectorBtn {
+            background-color: #2563eb;
+        }
+        #addSectorBtn:hover {
+            background-color: #1d4ed8;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        @media (min-width: 768px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (min-width: 1024px) {
+            .grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
         .card {
             background-color: white;
@@ -136,13 +186,38 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
         }
+        .card .flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
         .card h2 {
             font-size: 18px;
             font-weight: 600;
             color: #1e3a8a;
         }
+        .card .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
         .card p {
-            color: #6b7280;
+            color: #4b5563;
+            margin-top: 8px;
+        }
+        .modern-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #1e3a8a;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            margin-top: 16px;
+        }
+        .modern-button:hover {
+            background-color: #2b6cb0;
+            transform: scale(1.05);
         }
         .delete-button {
             background-color: #ef4444;
@@ -186,10 +261,10 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
+            background-color: rgba(0,0,0,0.4);
         }
         .modal-content {
-            background-color: white;
+            background-color: #fefefe;
             margin: 15% auto;
             padding: 20px;
             border: 1px solid #888;
@@ -207,43 +282,61 @@
         .close:hover,
         .close:focus {
             color: black;
+            text-decoration: none;
         }
-        .modal-content h2 {
+        .modal h2 {
             font-size: 20px;
             font-weight: bold;
             margin-bottom: 16px;
         }
-        .modal-content label {
+        .modal form label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 500;
         }
-        .modal-content input,
-        .modal-content select {
-            width: 100%;
+        .modal form input,
+        .modal form select {
             padding: 8px;
             border: 1px solid #d1d5db;
             border-radius: 4px;
+            width: 100%;
             margin-bottom: 16px;
             box-sizing: border-box;
         }
-        .modal-content button {
+        .modal form button {
             padding: 8px 16px;
+            background-color: #1e3a8a;
+            color: white;
             border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .modal form button:hover {
+            background-color: #2b6cb0;
+            transform: scale(1.05);
+        }
+        .modal p {
+            color: #4b5563;
+            margin-bottom: 16px;
+        }
+        .modal .button-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .modal .button-container button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
             cursor: pointer;
         }
-        .cancel-button {
+        .modal .button-container button.cancel {
             background-color: #d1d5db;
         }
-        .cancel-button:hover {
-            background-color: #9ca3af;
-        }
-        .confirm-delete-button {
-            background-color: #ef4444;
-            color: white;
-        }
-        .confirm-delete-button:hover {
+        .modal .button-container button.delete {
             background-color: #dc2626;
+            color: white;
         }
         .sector-item {
             display: flex;
@@ -260,47 +353,17 @@
         footer {
             background-color: #1e3a8a;
             color: white;
-            padding: 16px 0;
+            padding-top: 16px;
+            padding-bottom: 16px;
             text-align: center;
-        }
-        .search-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 32px;
-            align-items: center;
-        }
-        @media (min-width: 768px) {
-            .search-controls {
-                flex-direction: row;
-                justify-content: center;
-            }
-            .search-bar {
-                width: 50%;
-            }
-        }
-        .spreadsheet-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 24px;
-        }
-        @media (min-width: 768px) {
-            .spreadsheet-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        @media (min-width: 1024px) {
-            .spreadsheet-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
         }
     </style>
 </head>
 <body>
-    <header>
+    <header class="navy-blue">
         <div class="container">
-            <div style="display: flex; align-items: center;">
-                <img src="assets/P13sT7A.png" alt="LAMIC Logo" class="h-12 mr-4">
+            <div class="flex">
+                <img src="assets/P13sT7A.png" alt="LAMIC Logo">
                 <h1>Acervo de Planilhas LAMIC</h1>
             </div>
             <nav>
@@ -312,20 +375,22 @@
     </header>
 
     <main class="container">
-        <div class="search-controls">
+        <div class="search-section">
             <input type="text" id="searchInput" placeholder="Buscar por título..." class="search-bar">
             <div class="dropdown">
-                <button class="dropdown-button"><span id="selectedSector">Filtrar por Setor</span></button>
+                <button><span id="selectedSector">Filtrar por Setor</span></button>
                 <div id="sectorDropdown" class="dropdown-content">
-                    <a href="#" onclick="filterBySector('')">Todos</a>
-                    <a href="#" onclick="openModal('manageSectorsModal')">Gerenciar Setores</a>
+                    <a href="#" class="bg-blue" onclick="filterBySector('')">Todos</a>
+                    <a href="#" class="bg-green" onclick="openModal('manageSectorsModal')">Gerenciar Setores</a>
                 </div>
             </div>
-            <button id="addSpreadsheetBtn" class="modern-button add-button">Adicionar Planilha</button>
-            <button id="addSectorBtn" class="modern-button add-button">Adicionar Setor</button>
+            <button id="addSpreadsheetBtn" class="action-button">Adicionar Planilha</button>
+            <button id="addSectorBtn" class="action-button">Adicionar Setor</button>
         </div>
 
-        <div id="spreadsheetList" class="spreadsheet-grid"></div>
+        <div id="spreadsheetList" class="grid">
+            <!-- Cards serão adicionados dinamicamente aqui -->
+        </div>
     </main>
 
     <div id="addSpreadsheetModal" class="modal">
@@ -335,11 +400,16 @@
             <form id="addSpreadsheetForm">
                 <label for="title">Título:</label>
                 <input type="text" id="title" required>
+                
                 <label for="sector">Setor:</label>
-                <select id="sector" required></select>
+                <select id="sector" required>
+                    <!-- Opções de setores serão adicionadas dinamicamente -->
+                </select>
+                
                 <label for="link">Link:</label>
                 <input type="url" id="link" required>
-                <button type="submit" class="modern-button">Salvar</button>
+                
+                <button type="submit">Salvar</button>
             </form>
         </div>
     </div>
@@ -352,11 +422,16 @@
                 <input type="hidden" id="editIndex">
                 <label for="editTitle">Título:</label>
                 <input type="text" id="editTitle" required>
+                
                 <label for="editSector">Setor:</label>
-                <select id="editSector" required></select>
+                <select id="editSector" required>
+                    <!-- Opções de setores serão adicionadas dinamicamente -->
+                </select>
+                
                 <label for="editLink">Link:</label>
                 <input type="url" id="editLink" required>
-                <button type="submit" class="modern-button">Salvar Alterações</button>
+                
+                <button type="submit">Salvar Alterações</button>
             </form>
         </div>
     </div>
@@ -368,7 +443,8 @@
             <form id="addSectorForm">
                 <label for="newSector">Nome do Setor:</label>
                 <input type="text" id="newSector" required>
-                <button type="submit" class="modern-button">Salvar</button>
+                
+                <button type="submit">Salvar</button>
             </form>
         </div>
     </div>
@@ -377,9 +453,11 @@
         <div class="modal-content">
             <span class="close" onclick="closeModal('manageSectorsModal')">&times;</span>
             <h2>Gerenciar Setores</h2>
-            <p style="color: #6b7280; margin-bottom: 16px;">Arraste para reordenar os setores</p>
-            <div id="sectorList"></div>
-            <button onclick="closeModal('manageSectorsModal')" class="modern-button cancel-button">Fechar</button>
+            <p>Arraste para reordenar os setores</p>
+            <div id="sectorList">
+                <!-- Lista de setores será adicionada dinamicamente -->
+            </div>
+            <button onclick="closeModal('manageSectorsModal')">Fechar</button>
         </div>
     </div>
 
@@ -388,9 +466,9 @@
             <span class="close" onclick="closeModal('confirmDeleteModal')">&times;</span>
             <h2>Confirmar Remoção</h2>
             <p>Tem certeza de que deseja remover esta planilha?</p>
-            <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 16px;">
-                <button onclick="closeModal('confirmDeleteModal')" class="modern-button cancel-button">Cancelar</button>
-                <button id="confirmDeleteBtn" class="modern-button confirm-delete-button">Remover</button>
+            <div class="button-container">
+                <button onclick="closeModal('confirmDeleteModal')" class="cancel">Cancelar</button>
+                <button id="confirmDeleteBtn" class="delete">Remover</button>
             </div>
         </div>
     </div>
@@ -400,9 +478,9 @@
             <span class="close" onclick="closeModal('confirmDeleteSectorModal')">&times;</span>
             <h2>Confirmar Remoção</h2>
             <p id="confirmDeleteSectorMessage"></p>
-            <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 16px;">
-                <button onclick="closeModal('confirmDeleteSectorModal')" class="modern-button cancel-button">Cancelar</button>
-                <button id="confirmDeleteSectorBtn" class="modern-button confirm-delete-button">Remover</button>
+            <div class="button-container">
+                <button onclick="closeModal('confirmDeleteSectorModal')" class="cancel">Cancelar</button>
+                <button id="confirmDeleteSectorBtn" class="delete">Remover</button>
             </div>
         </div>
     </div>
@@ -414,37 +492,6 @@
     </footer>
 
     <script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-            return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                try {
-                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                    var firstSheetName = workbook.SheetNames[0];
-                    var worksheet = workbook.Sheets[firstSheetName];
-                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                    var filteredData = jsonData.filter(row => row.some(filledCell));
-                    var headerRowIndex = filteredData.findIndex((row, index) =>
-                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                    );
-                    if (headerRowIndex === -1 || headerRowIndex > 25) {
-                        headerRowIndex = 0;
-                    }
-                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                    return csv;
-                } catch (e) {
-                    console.error(e);
-                    return "";
-                }
-            }
-            return gk_fileData[filename] || "";
-        }
-
         let spreadsheets = JSON.parse(localStorage.getItem('spreadsheets')) || [];
         let sectors = JSON.parse(localStorage.getItem('sectors')) || ['Analítico', 'Atendimento', 'Pré-Analítico', 'Comercial', 'Adminstrativo', 'Tecnologia da Informação'];
         let deleteIndex = -1;
@@ -464,7 +511,7 @@
             sectorSelect.innerHTML = '';
             editSectorSelect.innerHTML = '';
             sectorDropdown.innerHTML = `
-                <a href="#" onclick="filterBySector('')">Todos</a>
+                <a href="#" class="bg-blue" onclick="filterBySector('')">Todos</a>
             `;
             sectors.forEach(sector => {
                 const option = document.createElement('option');
@@ -479,12 +526,14 @@
 
                 const a = document.createElement('a');
                 a.href = '#';
+                a.className = '';
                 a.textContent = sector;
                 a.onclick = () => filterBySector(sector);
                 sectorDropdown.appendChild(a);
             });
             const manageLink = document.createElement('a');
             manageLink.href = '#';
+            manageLink.className = 'bg-green';
             manageLink.textContent = 'Gerenciar Setores';
             manageLink.onclick = () => openModal('manageSectorsModal');
             sectorDropdown.appendChild(manageLink);
@@ -499,7 +548,7 @@
                 div.draggable = true;
                 div.innerHTML = `
                     <span>${sector}</span>
-                    <span class="delete-button" onclick="open CoinsDeleteSectorModal('${sector}')">X</span>
+                    <span class="delete-button" onclick="openDeleteSectorModal('${sector}')">X</span>
                 `;
                 div.addEventListener('dragstart', handleDragStart);
                 div.addEventListener('dragover', handleDragOver);
@@ -548,9 +597,9 @@
                 card.className = 'card';
                 card.dataset.sector = sheet.sector;
                 card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="flex">
                         <h2>${sheet.title}</h2>
-                        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                        <div class="button-container">
                             <span class="delete-button" onclick="openDeleteModal(${index})">X</span>
                             <span class="edit-button" onclick="openEditModal(${index})">&#9998;</span>
                         </div>

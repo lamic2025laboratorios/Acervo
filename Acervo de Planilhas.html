@@ -1,0 +1,575 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acervo de Planilhas LAMIC</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f9fafb;
+        }
+        .navy-blue {
+            background-color: #1e3a8a;
+        }
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .search-bar {
+            max-width: 600px;
+        }
+        .dropdown {
+            position: relative;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #ffffff;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.1);
+            z-index: 1;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        .modern-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #1e3a8a;
+            color: white;
+            border-radius: 6px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .modern-button:hover {
+            background-color: #2b6cb0;
+            transform: scale(1.05);
+        }
+        .delete-button {
+            background-color: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .delete-button:hover {
+            background-color: #dc2626;
+        }
+        .edit-button {
+            background-color: transparent;
+            color: #1e3a8a;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+            margin-right: 8px;
+        }
+        .edit-button:hover {
+            color: #2b6cb0;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .nav-item {
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            font-weight: 500;
+        }
+        .nav-item:hover {
+            background-color: #2b6cb0;
+            transform: scale(1.05);
+        }
+        .sector-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: move;
+        }
+        .sector-item.dragging {
+            opacity: 0.5;
+            background-color: #e0f2fe;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <header class="navy-blue text-white py-4">
+        <div class="container mx-auto flex items-center justify-between px-4">
+            <div class="flex items-center">
+                <img src="https://i.imgur.com/P13sT7A.png" alt="LAMIC Logo" class="h-12 mr-4">
+                <h1 class="text-2xl font-bold">Acervo de Planilhas LAMIC</h1>
+            </div>
+            <nav class="flex space-x-2">
+                <a href="https://drive.google.com/drive/folders/1Oq_6-RSzMyMSQn3PxFuwAgI8issN2Eqq" target="_blank" class="nav-item text-white">Grupo LAMIC</a>
+                <a href="https://drive.google.com/drive/folders/1dRlT62fBtdwYQkkpz5jm8bAAuJJwPM2d" target="_blank" class="nav-item text-white">POP's</a>
+                <a href="https://drive.google.com/drive/folders/1jyd1B7ylx1yvQkpmLqUgWCWD922fFFXT?usp=drive_open" target="_blank" class="nav-item text-white">Documentos</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container mx-auto py-8 flex-grow">
+        <div class="mb-8 flex flex-col md:flex-row gap-4 items-center justify-center">
+            <input type="text" id="searchInput" placeholder="Buscar por título..." class="search-bar p-3 border rounded-lg w-full md:w-1/2 focus:outline-none focus:ring-2 focus:ring-blue-900">
+            <div class="dropdown">
+                <button class="p-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800">
+                    <span id="selectedSector">Filtrar por Setor</span>
+                </button>
+                <div id="sectorDropdown" class="dropdown-content rounded-lg">
+                    <a href="#" class="block px-4 py-2 bg-blue-100 hover:bg-blue-200" onclick="filterBySector('')">Todos</a>
+                    <!-- Setores serão adicionados dinamicamente aqui -->
+                    <a href="#" class="block px-4 py-2 bg-green-100 hover:bg-green-200" onclick="openModal('manageSectorsModal')">Gerenciar Setores</a>
+                </div>
+            </div>
+            <button id="addSpreadsheetBtn" class="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700">Adicionar Planilha</button>
+            <button id="addSectorBtn" class="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Adicionar Setor</button>
+        </div>
+
+        <div id="spreadsheetList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards serão adicionados dinamicamente aqui -->
+        </div>
+    </main>
+
+    <!-- Modal para Adicionar Planilha -->
+    <div id="addSpreadsheetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addSpreadsheetModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Adicionar Nova Planilha</h2>
+            <form id="addSpreadsheetForm">
+                <label for="title" class="block mb-2">Título:</label>
+                <input type="text" id="title" required class="p-2 border rounded w-full mb-4">
+                
+                <label for="sector" class="block mb-2">Setor:</label>
+                <select id="sector" required class="p-2 border rounded w-full mb-4">
+                    <!-- Opções de setores serão adicionadas dinamicamente -->
+                </select>
+                
+                <label for="link" class="block mb-2">Link:</label>
+                <input type="url" id="link" required class="p-2 border rounded w-full mb-4">
+                
+                <button type="submit" class="modern-button">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Planilha -->
+    <div id="editSpreadsheetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editSpreadsheetModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Editar Planilha</h2>
+            <form id="editSpreadsheetForm">
+                <input type="hidden" id="editIndex">
+                <label for="editTitle" class="block mb-2">Título:</label>
+                <input type="text" id="editTitle" required class="p-2 border rounded w-full mb-4">
+                
+                <label for="editSector" class="block mb-2">Setor:</label>
+                <select id="editSector" required class="p-2 border rounded w-full mb-4">
+                    <!-- Opções de setores serão adicionadas dinamicamente -->
+                </select>
+                
+                <label for="editLink" class="block mb-2">Link:</label>
+                <input type="url" id="editLink" required class="p-2 border rounded w-full mb-4">
+                
+                <button type="submit" class="modern-button">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Setor -->
+    <div id="addSectorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addSectorModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Adicionar Novo Setor</h2>
+            <form id="addSectorForm">
+                <label for="newSector" class="block mb-2">Nome do Setor:</label>
+                <input type="text" id="newSector" required class="p-2 border rounded w-full mb-4">
+                
+                <button type="submit" class="modern-button">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Gerenciar Setores -->
+    <div id="manageSectorsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('manageSectorsModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Gerenciar Setores</h2>
+            <p class="mb-4 text-gray-600">Arraste para reordenar os setores</p>
+            <div id="sectorList" class="mb-4">
+                <!-- Lista de setores será adicionada dinamicamente -->
+            </div>
+            <button onclick="closeModal('manageSectorsModal')" class="p-2 bg-gray-300 rounded">Fechar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Remoção de Planilha -->
+    <div id="confirmDeleteModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('confirmDeleteModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Confirmar Remoção</h2>
+            <p>Tem certeza de que deseja remover esta planilha?</p>
+            <div class="mt-4 flex justify-end space-x-4">
+                <button onclick="closeModal('confirmDeleteModal')" class="p-2 bg-gray-300 rounded">Cancelar</button>
+                <button id="confirmDeleteBtn" class="p-2 bg-red-600 text-white rounded">Remover</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Remoção de Setor -->
+    <div id="confirmDeleteSectorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('confirmDeleteSectorModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Confirmar Remoção</h2>
+            <p id="confirmDeleteSectorMessage"></p>
+            <div class="mt-4 flex justify-end space-x-4">
+                <button onclick="closeModal('confirmDeleteSectorModal')" class="p-2 bg-gray-300 rounded">Cancelar</button>
+                <button id="confirmDeleteSectorBtn" class="p-2 bg-red-600 text-white rounded">Remover</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="navy-blue text-white py-4">
+        <div class="container mx-auto text-center">
+            <p>&copy; 2025 Acervo de Planilhas LAMIC. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+    <script>
+        let spreadsheets = JSON.parse(localStorage.getItem('spreadsheets')) || [];
+        let sectors = JSON.parse(localStorage.getItem('sectors')) || ['Analítico', 'Atendimento', 'Pré-Analítico', 'Comercial', 'Adminstrativo', 'Tecnologia da Informação'];
+        let deleteIndex = -1;
+        let editIndex = -1;
+        let deleteSectorName = '';
+        let selectedSector = '';
+
+        function saveData() {
+            localStorage.setItem('spreadsheets', JSON.stringify(spreadsheets));
+            localStorage.setItem('sectors', JSON.stringify(sectors));
+        }
+
+        function populateSectors() {
+            const sectorSelect = document.getElementById('sector');
+            const editSectorSelect = document.getElementById('editSector');
+            const sectorDropdown = document.getElementById('sectorDropdown');
+            sectorSelect.innerHTML = '';
+            editSectorSelect.innerHTML = '';
+            sectorDropdown.innerHTML = `
+                <a href="#" class="block px-4 py-2 bg-blue-100 hover:bg-blue-200" onclick="filterBySector('')">Todos</a>
+            `;
+            sectors.forEach(sector => {
+                const option = document.createElement('option');
+                option.value = sector;
+                option.textContent = sector;
+                sectorSelect.appendChild(option);
+
+                const editOption = document.createElement('option');
+                editOption.value = sector;
+                editOption.textContent = sector;
+                editSectorSelect.appendChild(editOption);
+
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = 'block px-4 py-2 hover:bg-gray-100';
+                a.textContent = sector;
+                a.onclick = () => filterBySector(sector);
+                sectorDropdown.appendChild(a);
+            });
+            const manageLink = document.createElement('a');
+            manageLink.href = '#';
+            manageLink.className = 'block px-4 py-2 bg-green-100 hover:bg-green-200';
+            manageLink.textContent = 'Gerenciar Setores';
+            manageLink.onclick = () => openModal('manageSectorsModal');
+            sectorDropdown.appendChild(manageLink);
+        }
+
+        function populateSectorList() {
+            const sectorList = document.getElementById('sectorList');
+            sectorList.innerHTML = '';
+            sectors.forEach(sector => {
+                const div = document.createElement('div');
+                div.className = 'sector-item';
+                div.draggable = true;
+                div.innerHTML = `
+                    <span>${sector}</span>
+                    <span class="delete-button" onclick="openDeleteSectorModal('${sector}')">X</span>
+                `;
+                div.addEventListener('dragstart', handleDragStart);
+                div.addEventListener('dragover', handleDragOver);
+                div.addEventListener('drop', handleDrop);
+                div.addEventListener('dragend', handleDragEnd);
+                sectorList.appendChild(div);
+            });
+        }
+
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = e.target;
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const target = e.target.closest('.sector-item');
+            if (draggedItem && target && draggedItem !== target) {
+                const allItems = Array.from(document.querySelectorAll('.sector-item'));
+                const draggedIndex = allItems.indexOf(draggedItem);
+                const targetIndex = allItems.indexOf(target);
+                const [removed] = sectors.splice(draggedIndex, 1);
+                sectors.splice(targetIndex, 0, removed);
+                saveData();
+                populateSectors();
+                populateSectorList();
+            }
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedItem = null;
+        }
+
+        function renderCards() {
+            const spreadsheetList = document.getElementById('spreadsheetList');
+            spreadsheetList.innerHTML = '';
+            spreadsheets.forEach((sheet, index) => {
+                const card = document.createElement('div');
+                card.className = 'card bg-white p-6 rounded-lg shadow-md';
+                card.dataset.sector = sheet.sector;
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <h2 class="text-lg font-semibold text-blue-900">${sheet.title}</h2>
+                        <div class="flex flex-col items-end">
+                            <span class="delete-button" onclick="openDeleteModal(${index})">X</span>
+                            <span class="edit-button" onclick="openEditModal(${index})">&#9998;</span>
+                        </div>
+                    </div>
+                    <p class="text-gray-600">Setor: ${sheet.sector}</p>
+                    <a href="${sheet.link}" target="_blank" class="mt-4 modern-button">Acessar Planilha</a>
+                `;
+                spreadsheetList.appendChild(card);
+            });
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            if (modalId === 'manageSectorsModal') {
+                populateSectorList();
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openDeleteModal(index) {
+            deleteIndex = index;
+            openModal('confirmDeleteModal');
+        }
+
+        function openEditModal(index) {
+            editIndex = index;
+            const sheet = spreadsheets[index];
+            document.getElementById('editTitle').value = sheet.title;
+            document.getElementById('editSector').value = sheet.sector;
+            document.getElementById('editLink').value = sheet.link;
+            openModal('editSpreadsheetModal');
+        }
+
+        function openDeleteSectorModal(sector) {
+            const isUsed = spreadsheets.some(sheet => sheet.sector === sector);
+            const messageElement = document.getElementById('confirmDeleteSectorMessage');
+            if (isUsed) {
+                messageElement.textContent = `Não é possível remover o setor "${sector}" porque ele está sendo usado por uma ou mais planilhas.`;
+                document.getElementById('confirmDeleteSectorBtn').style.display = 'none';
+            } else {
+                messageElement.textContent = `Tem certeza de que deseja remover o setor "${sector}"?`;
+                document.getElementById('confirmDeleteSectorBtn').style.display = 'inline-block';
+                deleteSectorName = sector;
+            }
+            openModal('confirmDeleteSectorModal');
+        }
+
+        document.getElementById('addSpreadsheetBtn').addEventListener('click', () => openModal('addSpreadsheetModal'));
+
+        document.getElementById('addSectorBtn').addEventListener('click', () => openModal('addSectorModal'));
+
+        document.getElementById('addSpreadsheetForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const sector = document.getElementById('sector').value;
+            const link = document.getElementById('link').value;
+            spreadsheets.push({ title, sector, link });
+            saveData();
+            renderCards();
+            closeModal('addSpreadsheetModal');
+            document.getElementById('addSpreadsheetForm').reset();
+        });
+
+        document.getElementById('editSpreadsheetForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (editIndex !== -1) {
+                spreadsheets[editIndex].title = document.getElementById('editTitle').value;
+                spreadsheets[editIndex].sector = document.getElementById('editSector').value;
+                spreadsheets[editIndex].link = document.getElementById('editLink').value;
+                saveData();
+                renderCards();
+                editIndex = -1;
+            }
+            closeModal('editSpreadsheetModal');
+        });
+
+        document.getElementById('addSectorForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newSector = document.getElementById('newSector').value;
+            if (!sectors.includes(newSector)) {
+                sectors.push(newSector);
+                saveData();
+                populateSectors();
+                populateSectorList();
+            }
+            closeModal('addSectorModal');
+            document.getElementById('addSectorForm').reset();
+        });
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+            if (deleteIndex !== -1) {
+                spreadsheets.splice(deleteIndex, 1);
+                saveData();
+                renderCards();
+                deleteIndex = -1;
+            }
+            closeModal('confirmDeleteModal');
+        });
+
+        document.getElementById('confirmDeleteSectorBtn').addEventListener('click', () => {
+            if (deleteSectorName) {
+                sectors = sectors.filter(sector => sector !== deleteSectorName);
+                saveData();
+                populateSectors();
+                populateSectorList();
+                deleteSectorName = '';
+            }
+            closeModal('confirmDeleteSectorModal');
+        });
+
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const cards = document.getElementsByClassName('card');
+            Array.from(cards).forEach(card => {
+                const title = card.querySelector('h2').textContent.toLowerCase();
+                const cardSector = card.getAttribute('data-sector');
+                const matchesSearch = title.includes(searchTerm);
+                const matchesSector = selectedSector === '' || cardSector === selectedSector;
+                card.style.display = matchesSearch && matchesSector ? '' : 'none';
+            });
+        });
+
+        function filterBySector(sector) {
+            selectedSector = sector;
+            document.getElementById('selectedSector').textContent = sector || 'Filtrar por Setor';
+            const cards = document.getElementsByClassName('card');
+            const searchTerm = searchInput.value.toLowerCase();
+            Array.from(cards).forEach(card => {
+                const title = card.querySelector('h2').textContent.toLowerCase();
+                const cardSector = card.getAttribute('data-sector');
+                const matchesSearch = title.includes(searchTerm);
+                const matchesSector = sector === '' || cardSector === sector;
+                card.style.display = matchesSearch && matchesSector ? '' : 'none';
+            });
+        }
+
+        // Inicializar
+        populateSectors();
+        populateSectorList();
+        renderCards();
+    </script>
+</body>
+</html>

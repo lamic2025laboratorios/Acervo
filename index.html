@@ -1,111 +1,75 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acervo de Planilhas LAMIC</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <style>
         body {
             background-color: #f9fafb;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
         .navy-blue {
             background-color: #1e3a8a;
         }
-        .container {
-            width: 100%;
-            max-width: 1280px;
-            margin-left: auto;
-            margin-right: auto;
-            padding-left: 16px;
-            padding-right: 16px;
+        .title-font {
+            font-family: 'Playfair Display', serif;
         }
-        header {
-            color: white;
-            padding-top: 16px;
-            padding-bottom: 16px;
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            z-index: 1; /* Lower z-index for cards */
         }
-        header .container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        header .flex {
-            display: flex;
-            align-items: center;
-        }
-        header img {
-            height: 48px;
-            margin-right: 16px;
-        }
-        header h1 {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        header nav {
-            display: flex;
-            gap: 8px;
-        }
-        .nav-item {
-            padding: 8px 16px;
-            border-radius: 6px;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            font-weight: 500;
-            color: white;
-            text-decoration: none;
-        }
-        .nav-item:hover {
-            background-color: #2b6cb0;
-            transform: scale(1.05);
-        }
-        main {
-            flex-grow: 1;
-            padding-top: 32px;
-            padding-bottom: 32px;
-        }
-        .search-section {
-            margin-bottom: 32px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            align-items: center;
-            justify-content: center;
-        }
-        @media (min-width: 768px) {
-            .search-section {
-                flex-direction: row;
-            }
+        .card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+            z-index: 2; /* Slightly higher on hover, but still below dropdowns */
         }
         .search-bar {
             max-width: 600px;
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            outline: none;
-        }
-        .search-bar:focus {
-            border-color: #1e3a8a;
-            box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.5);
         }
         .dropdown {
             position: relative;
-        }
-        .dropdown button {
-            padding: 12px;
-            background-color: #1e3a8a;
-            color: white;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        .dropdown button:hover {
-            background-color: #2b6cb0;
         }
         .dropdown-content {
             display: none;
@@ -113,97 +77,31 @@
             background-color: #ffffff;
             min-width: 160px;
             box-shadow: 0px 8px 16px rgba(0,0,0,0.1);
-            z-index: 1;
-            border-radius: 8px;
+            z-index: 10; /* Sector dropdown above cards */
+            max-height: 200px; /* Approximate height for 5 items */
+            overflow-y: auto; /* Enable scrollbar for overflow */
         }
         .dropdown:hover .dropdown-content {
             display: block;
         }
-        .dropdown-content a {
+        .form-dropdown {
+            position: relative;
+        }
+        .form-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #ffffff;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.1);
+            z-index: 30; /* Higher z-index to ensure form dropdown is above all cards */
+            top: 100%; /* Position below the button */
+            left: 0;
+            padding-top: 4px; /* Small padding to prevent clipping */
+            max-height: 200px; /* Approximate height for 5 items */
+            overflow-y: auto; /* Enable scrollbar for overflow */
+        }
+        .form-dropdown:hover .form-dropdown-content {
             display: block;
-            padding: 8px 16px;
-            text-decoration: none;
-            color: black;
-        }
-        .dropdown-content a.bg-blue {
-            background-color: #dbeafe;
-        }
-        .dropdown-content a.bg-blue:hover {
-            background-color: #bfdbfe;
-        }
-        .dropdown-content a.bg-green {
-            background-color: #d1fae5;
-        }
-        .dropdown-content a.bg-green:hover {
-            background-color: #a7f3d0;
-        }
-        .dropdown-content a:hover {
-            background-color: #f3f4f6;
-        }
-        .action-button {
-            padding: 12px;
-            color: white;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        #addSpreadsheetBtn {
-            background-color: #16a34a;
-        }
-        #addSpreadsheetBtn:hover {
-            background-color: #15803d;
-        }
-        #addSectorBtn {
-            background-color: #2563eb;
-        }
-        #addSectorBtn:hover {
-            background-color: #1d4ed8;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 24px;
-        }
-        @media (min-width: 768px) {
-            .grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        @media (min-width: 1024px) {
-            .grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-        .card {
-            background-color: white;
-            padding: 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-        }
-        .card .flex {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-        .card h2 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3a8a;
-        }
-        .card .button-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-        }
-        .card p {
-            color: #4b5563;
-            margin-top: 8px;
         }
         .modern-button {
             display: inline-block;
@@ -211,538 +109,369 @@
             background-color: #1e3a8a;
             color: white;
             border-radius: 6px;
-            text-decoration: none;
             transition: background-color 0.3s ease, transform 0.2s ease;
-            margin-top: 16px;
         }
         .modern-button:hover {
             background-color: #2b6cb0;
             transform: scale(1.05);
         }
-        .delete-button {
-            background-color: #ef4444;
-            color: white;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        .delete-button:hover {
-            background-color: #dc2626;
-        }
-        .edit-button {
-            background-color: transparent;
-            color: #1e3a8a;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.3s ease;
-            margin-right: 8px;
-        }
-        .edit-button:hover {
-            color: #2b6cb0;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 50;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
-        }
-        .modal-content {
-            background-color: #fefefe;
-            margin: 15% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
-        }
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .close:hover,
-        .close:focus {
-            color: black;
-            text-decoration: none;
-        }
-        .modal h2 {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 16px;
-        }
-        .modal form label {
-            display: block;
-            margin-bottom: 8px;
-        }
-        .modal form input,
-        .modal form select {
-            padding: 8px;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            width: 100%;
-            margin-bottom: 16px;
-            box-sizing: border-box;
-        }
-        .modal form button {
+        .form-button {
+            display: inline-block;
             padding: 8px 16px;
-            background-color: #1e3a8a;
+            background-color: #6b21a8;
             color: white;
             border-radius: 6px;
-            border: none;
-            cursor: pointer;
             transition: background-color 0.3s ease, transform 0.2s ease;
         }
-        .modal form button:hover {
+        .form-button:hover {
+            background-color: #7e22ce;
+            transform: scale(1.05);
+        }
+        .favorite-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #d4af37;
+            color: white;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .favorite-button.active {
+            background-color: #fef3c7;
+            color: #1f2937;
+            border: 2px solid #d4af37;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .favorite-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+        .favorite-button:hover::before {
+            width: 200px;
+            height: 200px;
+        }
+        .favorite-button:hover {
+            background-color: #b8972e;
+            transform: scale(1.05);
+        }
+        .favorite-button.active:hover {
+            background-color: #f7e5a3;
+        }
+        .nav-item {
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            font-weight: 500;
+        }
+        .nav-item:hover {
             background-color: #2b6cb0;
             transform: scale(1.05);
         }
-        .modal p {
-            color: #4b5563;
-            margin-bottom: 16px;
-        }
-        .modal .button-container {
-            display: flex;
-            justify-content: flex-end;
-            gap: 16px;
-            margin-top: 16px;
-        }
-        .modal .button-container button {
-            padding: 8px 16px;
-            border-radius: 4px;
-            border: none;
+        .star {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             cursor: pointer;
+            font-size: 1.5rem;
         }
-        .modal .button-container button.cancel {
-            background-color: #d1d5db;
+        .star.favorited {
+            color: #d4af37;
         }
-        .modal .button-container button.delete {
-            background-color: #dc2626;
-            color: white;
-        }
-        .sector-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: move;
-        }
-        .sector-item.dragging {
-            opacity: 0.5;
-            background-color: #e0f2fe;
-        }
-        footer {
-            background-color: #1e3a8a;
-            color: white;
-            padding-top: 16px;
-            padding-bottom: 16px;
-            text-align: center;
+        .star:not(.favorited) {
+            color: #d1d5db;
         }
     </style>
 </head>
-<body>
-    <header class="navy-blue">
-        <div class="container">
-            <div class="flex">
-                <img src="assets/P13sT7A.png" alt="LAMIC Logo">
-                <h1>Acervo de Planilhas LAMIC</h1>
+<body class="min-h-screen flex flex-col">
+    <header class="navy-blue text-white py-4">
+        <div class="container mx-auto flex items-center justify-between px-4">
+            <div class="flex items-center">
+                <h1 class="text-3xl font-bold title-font">Acervo de Planilhas LAMIC</h1>
             </div>
-            <nav>
-                <a href="https://drive.google.com/drive/folders/1Oq_6-RSzMyMSQn3PxFuwAgI8issN2Eqq" target="_blank" class="nav-item">Grupo LAMIC</a>
-                <a href="https://drive.google.com/drive/folders/1dRlT62fBtdwYQkkpz5jm8bAAuJJwPM2d" target="_blank" class="nav-item">POP's</a>
-                <a href="https://drive.google.com/drive/folders/1jyd1B7ylx1yvQkpmLqUgWCWD922fFFXT?usp=drive_open" target="_blank" class="nav-item">Documentos</a>
+            <nav class="flex space-x-2">
+                <a href="https://drive.google.com/drive/folders/1Oq_6-RSzMyMSQn3PxFuwAgI8issN2Eqq" target="_blank" class="nav-item text-white">Grupo LAMIC</a>
+                <a href="https://drive.google.com/drive/folders/1dRlT62fBtdwYQkkpz5jm8bAAuJJwPM2d" target="_blank" class="nav-item text-white">POP's</a>
+                <a href="https://drive.google.com/drive/folders/1jyd1B7ylx1yvQkpmLqUgWCWD922fFFXT?usp=drive_open" target="_blank" class="nav-item text-white">Documentos</a>
             </nav>
         </div>
     </header>
 
-    <main class="container">
-        <div class="search-section">
-            <input type="text" id="searchInput" placeholder="Buscar por título..." class="search-bar">
+    <main class="container mx-auto py-8 flex-grow">
+        <div class="mb-8 flex flex-col md:flex-row gap-4 items-center justify-center">
+            <input type="text" id="searchInput" placeholder="Buscar por título..." class="search-bar p-3 border rounded-lg w-full md:w-1/2 focus:outline-none focus:ring-2 focus:ring-blue-900">
             <div class="dropdown">
-                <button><span id="selectedSector">Filtrar por Setor</span></button>
-                <div id="sectorDropdown" class="dropdown-content">
-                    <a href="#" class="bg-blue" onclick="filterBySector('')">Todos</a>
-                    <a href="#" class="bg-green" onclick="openModal('manageSectorsModal')">Gerenciar Setores</a>
+                <button class="p-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800">
+                    <span id="selectedSector">Filtrar por Setor</span>
+                </button>
+                <div id="sectorDropdown" class="dropdown-content rounded-lg">
+                    <a href="#" class="block px-4 py-2 bg-blue-100 hover:bg-blue-200" onclick="filterBySector('')">Todos</a>
+                    <!-- Setores serão adicionados dinamicamente aqui -->
                 </div>
             </div>
-            <button id="addSpreadsheetBtn" class="action-button">Adicionar Planilha</button>
-            <button id="addSectorBtn" class="action-button">Adicionar Setor</button>
+            <button id="favoriteFilter" class="p-3 favorite-button" onclick="filterByFavorites()">Favoritos</button>
         </div>
 
-        <div id="spreadsheetList" class="grid">
+        <div id="spreadsheetList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Cards serão adicionados dinamicamente aqui -->
         </div>
     </main>
 
-    <div id="addSpreadsheetModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('addSpreadsheetModal')">&times;</span>
-            <h2>Adicionar Nova Planilha</h2>
-            <form id="addSpreadsheetForm">
-                <label for="title">Título:</label>
-                <input type="text" id="title" required>
-                
-                <label for="sector">Setor:</label>
-                <select id="sector" required>
-                    <!-- Opções de setores serão adicionadas dinamicamente -->
-                </select>
-                
-                <label for="link">Link:</label>
-                <input type="url" id="link" required>
-                
-                <button type="submit">Salvar</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="editSpreadsheetModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('editSpreadsheetModal')">&times;</span>
-            <h2>Editar Planilha</h2>
-            <form id="editSpreadsheetForm">
-                <input type="hidden" id="editIndex">
-                <label for="editTitle">Título:</label>
-                <input type="text" id="editTitle" required>
-                
-                <label for="editSector">Setor:</label>
-                <select id="editSector" required>
-                    <!-- Opções de setores serão adicionadas dinamicamente -->
-                </select>
-                
-                <label for="editLink">Link:</label>
-                <input type="url" id="editLink" required>
-                
-                <button type="submit">Salvar Alterações</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="addSectorModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('addSectorModal')">&times;</span>
-            <h2>Adicionar Novo Setor</h2>
-            <form id="addSectorForm">
-                <label for="newSector">Nome do Setor:</label>
-                <input type="text" id="newSector" required>
-                
-                <button type="submit">Salvar</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="manageSectorsModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('manageSectorsModal')">&times;</span>
-            <h2>Gerenciar Setores</h2>
-            <p>Arraste para reordenar os setores</p>
-            <div id="sectorList">
-                <!-- Lista de setores será adicionada dinamicamente -->
-            </div>
-            <button onclick="closeModal('manageSectorsModal')">Fechar</button>
-        </div>
-    </div>
-
-    <div id="confirmDeleteModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('confirmDeleteModal')">&times;</span>
-            <h2>Confirmar Remoção</h2>
-            <p>Tem certeza de que deseja remover esta planilha?</p>
-            <div class="button-container">
-                <button onclick="closeModal('confirmDeleteModal')" class="cancel">Cancelar</button>
-                <button id="confirmDeleteBtn" class="delete">Remover</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="confirmDeleteSectorModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('confirmDeleteSectorModal')">&times;</span>
-            <h2>Confirmar Remoção</h2>
-            <p id="confirmDeleteSectorMessage"></p>
-            <div class="button-container">
-                <button onclick="closeModal('confirmDeleteSectorModal')" class="cancel">Cancelar</button>
-                <button id="confirmDeleteSectorBtn" class="delete">Remover</button>
-            </div>
-        </div>
-    </div>
-
-    <footer>
-        <div class="container">
+    <footer class="navy-blue text-white py-4">
+        <div class="container mx-auto text-center">
             <p>&copy; 2025 Acervo de Planilhas LAMIC. Todos os direitos reservados.</p>
         </div>
     </footer>
 
     <script type="text/javascript">
-        let spreadsheets = JSON.parse(localStorage.getItem('spreadsheets')) || [];
-        let sectors = JSON.parse(localStorage.getItem('sectors')) || ['Analítico', 'Atendimento', 'Pré-Analítico', 'Comercial', 'Adminstrativo', 'Tecnologia da Informação'];
-        let deleteIndex = -1;
-        let editIndex = -1;
-        let deleteSectorName = '';
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+            return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+                try {
+                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                    var firstSheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[firstSheetName];
+                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                    var filteredData = jsonData.filter(row => row.some(filledCell));
+                    var headerRowIndex = filteredData.findIndex((row, index) =>
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                    );
+                    if (headerRowIndex === -1 || headerRowIndex > 25) {
+                        headerRowIndex = 0;
+                    }
+                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                    return csv;
+                } catch (e) {
+                    console.error(e);
+                    return "";
+                }
+            }
+            return gk_fileData[filename] || "";
+        }
+
+        let spreadsheets = [
+            { title: "Dados - Filtro de Pacientes recorrentes", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1I7BFJSkW_ybeEO-_vr-PXQrBycjn1RolRzy3aayUz-o/edit?gid=0#gid=0", forms: [] },
+            { title: "Dados - Lista de Pacientes recorrentes", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1oRzVVCQjem6ToaA-McCjO9RqG50kpoFjh2a7Dy9JfAY/edit?gid=596538824#gid=596538824", forms: [] },
+            { title: "Dados - Protocolo de Anexos e Evidências", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1v7dSyxAMNHdCmk7mb1Q_CzI_rYRKdc-F4uV7VTsDluA/edit?usp=drive_link", forms: [{ title: "", link: "https://forms.gle/r2cy7S5Rry2cWvZG6" }] },
+            { title: "Dados - Protocolo de ATA's", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/140PEhKMHFFTr5lvICTP2-zAiH-A18SCQHxtiz3KAuXU/edit?resourcekey=&gid=1333293977#gid=1333293977", forms: [
+                { title: "Declarações e Certificados", link: "https://forms.gle/VCSJpGojQTWAR9oP9" },
+                { title: "Capacitação Individual", link: "https://forms.gle/mKn4bdwvQPWZALFE9" },
+                { title: "Educação Continuada", link: "https://forms.gle/ZmhKpt3DYfQN46sLA" },
+                { title: "Atas de Treinamento", link: "https://forms.gle/K4TJMaTPPTfLK4UX9" }
+            ] },
+            { title: "Relatório - Auditoria e B.I Hermes Pardini", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1I7nCv9CcS40Bf0LGgl02qyJz3YGWcav1lqyM3bt4qNc/edit?gid=1652334335#gid=1652334335", forms: [] },
+            { title: "Relatório - Volume de pedidos por horário", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1wvno8nwxcBemciobKlNJL4wgJeD4LsptBIN-uoI90wE/edit?gid=825914528#gid=825914528", forms: [] },
+            { title: "Dados - Documentos e Notas Fiscais", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1fhaAWoXz2ebQTK0vhlzZYMMlDEx1iF9QWaFZYttWgrc/edit?gid=2051075321#gid=2051075321", forms: [{ title: "", link: "https://forms.gle/15M5Xe32icGLYQJH8" }] },
+            { title: "Dados - Solicitação de insumos do Almoxarifado", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1zsK0nw73_muEHA7MXDVN5hSy6SbGh9wtx55z68vzq3s/edit?gid=1401504443#gid=1401504443", forms: [{ title: "", link: "https://forms.gle/4VP3kfnRMztAh1Nz7" }] },
+            { title: "Gestão - Almoxarifado Geral", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/11oRTb6e0Ekq2ti7liEjif2XWvHRSIpp_fwfPkD9Q-JA/edit#gid=814613652", forms: [] },
+            { title: "Gestão - Estoque - 01 - Unidade NTO", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1bmOo_Y57TpyC24qbPJXcEumABN9zOpIljs2vb6T2f2c/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 03 - Unidade Crato", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/11vJU7svPWmq72SwRyXNntZqWFmI0AirpGuRhOklLFAE/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 05 - Unidade Novo Juazeiro", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1dAwzxk2M3Af2Ijz8Jdnz5C_0noCTL3RjGWMxxGw4Q2Q/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 06 - Unidade Milagres", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/10SD88BH1pAUoX1Iu9oiVUxWuqaUK2AiXzfVAj2eYQ9E/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 09 - Unidade Barro", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/14ZrSFMDDXCnyQx5h2S3LIoiXnvhkgLK8ujsTLOuVsDQ/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 10 - Unidade Office Cariri", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1DR-B4MV5bQ8eNANECC-36PI12DDQxI7O9Li2L48uhig/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 12 - Unidade Caririaçu", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/10BrlDJutwNEy5gmAXutf3Dstx6JRkv2pSgRR8987e90/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 13 - Unidade Campos Sales", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1ZdSLLJp_d5oUlP3v4TySNjKLnk0vYrjrav3ZAQh2Ndo/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 14 - Unidade Nova Olinda", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/15WxKpSmmcaUcc53XDwD2QT2oa-02OINkB7cGwBg-W9I/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 16 - Unidade Araripe", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/19loLlqBSWCb8tOW5saZNQlFJ-paIQPpDzXzuOMnqIP4/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 23 - Unidade Salesianos", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1d7UV1zqDxM0gazFS06hqWBfCxz8X1XJzr_KHWbIe3rM/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 62 - Unidade Clemir Arrais", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1a0LLKkOV4eOykISH0pDpPQzjv3vcoABcxBw1W_xpWZk/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 88 - Unidade Unicardio", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1pz66wZwtkn0Zwz6IQNSkvlQP3jN5LAPLlY757gERnG8/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - 97 - Unidade Endoclinic", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1tMlBgzmEBr8lphBw86Y2ncOVmJDaoLjlRQYP5grBfVk/edit?usp=drive_link", forms: [] },
+            { title: "Gestão - Estoque - Coleta Domiciliar", sector: "Almoxarifado", link: "https://docs.google.com/spreadsheets/d/1mHi65SBo8monTloEKk1TKG3R80pWVDDqOWlGQ7CubQw/edit?usp=drive_link", forms: [] },
+            { title: "Dados - Acreditação, Normas e RDC's", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/18d5tNwqoMaR-ogMIH6jzlqzl_sCc2x-IMimX4ann-eI/edit?gid=0#gid=0", forms: [] },
+            { title: "Dados - Checklist de Limpeza - Urianálise/Parasito", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1z8VOJr4c08I3bN-IbFTTrtYWHG8teOCMHgwJ19kXu0U/edit?gid=1737538825#gid=1737538825", forms: [] },
+            { title: "Dados - Checklist Manutenção - Imuno-Hormônios", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1WGTpxvNGZYU8DJLPyaPje7UXGfL6_QITQKMbG57-wPU/edit#gid=1737538825", forms: [] },
+            { title: "Dados - Controle de Qualidade - Imuno-Hormônios", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1qphC62x9hv3lAItWonJT7sINC7sBiUUPSpLESMICns8/edit?gid=1737538825#gid=1737538825", forms: [] },
+            { title: "Dados - Controle de Temperatura", sector: "Pré-Analítico", link: "https://drive.google.com/drive/folders/1NucEAGX4vV3S09Q2fRKUMsJJXOSFMpUe", forms: [] },
+            { title: "Dados - Protocolo de Manutenção", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1qTmqBp6W4l4Uvbb9JpmeHKHL93CuEXIow52QfpuPPZA/edit", forms: [] },
+            { title: "Estatística - Exames Atrasados", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1sBe0p-jpPrzs8n7MWgg19mti1HVGVqYi6d2NizEiEyI/edit#gid=2061615513", forms: [] },
+            { title: "Estatística - Produtividade dos Reagentes/Equipamentos", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1bnAxgE4KzIHP6MgIBoZwJsfp6od39k9WQ2TueHE_XHo/edit?gid=1969031502#gid=1969031502", forms: [] },
+            { title: "Estatística - Recoleta, Repetição e Revisões", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1vPq2pPbLFfdcr0Jh_j2poRQuyIE0Ju_1Hhgkq58G0dE/edit?gid=1052390470#gid=1052390470", forms: [] },
+            { title: "Estoque - Insumos e Reagentes da Área Técnica", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1xMj-GdvyYsnfrsL6ZIPfMkMo833R_NO9232gidhJNUU/edit?gid=814613652#gid=814613652", forms: [] },
+            { title: "Relatório - Ocorrências da Área Técnica", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1jPfVxsulCT0j9l29EFSvYumGTVFJ9LuERyeXD1nWKzg/edit?gid=1064389815#gid=1064389815", forms: [] },
+            { title: "Relatório - TRESP TSBAC", sector: "Analítico", link: "https://docs.google.com/spreadsheets/d/1IKH_7JvCtkzWX_1wWj529ASRVcAxZkXSUkxZc5R_LDE/edit?gid=1680206567#gid=1680206567", forms: [] },
+            { title: "Relatório - Contador de Pacientes - CAC", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/1TB_pbcItAqdfRNSArS3-8vOaa8rp9WvMKtBoCdDj9cs/edit?gid=1738995548#gid=1738995548", forms: [] },
+            { title: "Relatório - Contador de Pacientes - Lojas", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/14zAiniqAyxoXf9yynVUjym6JG1BpsvVuV_7bOFVZyTE/edit?gid=1543462215#gid=1543462215", forms: [] },
+            { title: "Relatório - Conversão de Orçamentos", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/161PaxSjQh-3N0LcGw_42M3J1IfLRAeQowyrhAf03a7M/edit?gid=441841903#gid=441841903", forms: [] },
+            { title: "Relatório - Mensagens Recebidas - CAC", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/10i3C8LxP-y2SET-kWr-lVdeDmQTXT0Ay6Yx0cBP8dTY/edit?gid=2140964014#gid=2140964014", forms: [] },
+            { title: "Relatório - Motivos de Perda", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/1oP_ywSj8M2K1PWMvyBU_lSRPN7ysMQ5fS3iYHanoW1o/edit?resourcekey=&gid=441841903#gid=441841903", forms: [{ title: "", link: "https://forms.gle/8CrMjPWrH1ZKP9Uq8" }] },
+            { title: "Relatório - Ocorrências dos Colaboradores (Convênios)", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/1OUQYZBOjtnffeKwgqtHw-Ybn-UI-G5JogVqySr_NDdE/edit?gid=1064389815#gid=1064389815", forms: [] },
+            { title: "Relatório - Proeficiência dos Atendentes", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/1hqIoKnYIpkAkkE0Ki27gPzeujwooC3vEcTwRMxLUAfI/edit?gid=1913731350#gid=1913731350", forms: [] },
+            { title: "Relatório - Produtividade do CAC", sector: "Atendimento", link: "https://docs.google.com/spreadsheets/d/19uAqg3f8YWWC0lXMLMn4wLQBkSR0b4I6H_0tQKQ0s54/edit?gid=34344753#gid=34344753", forms: [] },
+            { title: "Dados - Compras do Laboratório", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1uj9rk-5A1U5MhtNUXCpRO5X_q5ML1htJfKLEblYuiWE/edit?gid=1969031502#gid=1969031502", forms: [] },
+            { title: "Gestão - LAMIC VIVA MAIS (LCE)", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1cjErHBw_P-FZTRMp4ZUdWw5NxYIprPr7A3OP0sIocWs/edit?gid=175422876#gid=175422876", forms: [] },
+            { title: "Relatório - Campanhas Promocionais", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1DHdKMF-LY2C9e7b6Pmn-ldoCMqpKgRdrrq4L-2FmcGs/edit?gid=441841903#gid=441841903", forms: [] },
+            { title: "Relatório - Curva ABC das Citologias", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1Zh-J6O-fjWb6xV_P4hcKP0rQNgHRmMOQ_Emk1TB-yAQ/edit?gid=1680206567#gid=1680206567", forms: [] },
+            { title: "Relatório - Produtividade dos Apoiados", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1eDCXceWnY40XdhQqbpAHtNAoNLEfwBxvPBfjXU1vTcI/edit?resourcekey=&gid=1044862462#gid=1044862462", forms: [] },
+            { title: "Relatório - Ranking de Exames por Médico", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1wb104xUyryKPLeoReQeHBdSDFEd-5G5SZyksrbo6hos/edit?gid=1680206567#gid=1680206567", forms: [] },
+            { title: "Dados - Tabela de Preços Lamic to Lab", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1jVtSxbP-RmzefsDpPutWCPDazxBupc496kFqqtA_gHA/edit?gid=1332757965#gid=1332757965", forms: [] },
+            { title: "Dados - Tabela de Preços Particular e Cartões de Desconto", sector: "Comercial", link: "https://docs.google.com/spreadsheets/d/1X6HlB6rZ9U5Y32new95fpd5zxM_Y0U9Q6jAN9-va2ZY/edit?gid=1332757965#gid=1332757965", forms: [] },
+            { title: "Dados - Preço de Exames Setor/Convênios", sector: "Convênios", link: "https://docs.google.com/spreadsheets/d/1bLN3r2ETcPYz0pRAiYP2NjQMxRkeTdj0Sj-5pH08gqM/edit?gid=316794600#gid=316794600", forms: [] },
+            { title: "Relatório - Faturamento dos Convênios", sector: "Convênios", link: "https://docs.google.com/spreadsheets/d/14g5t9x7FfEy-CAmxL_Wm5Jj1b__8xMRNsZ8YI2IdOvs/edit?gid=1064389815#gid=1064389815", forms: [] },
+            { title: "Relatório - Metas dos Atendentes", sector: "Coordenação", link: "https://docs.google.com/spreadsheets/d/1fCNRyVrYWB5v4BvBv69x0BLlu4mEzpDXNskCUY33UnA/edit?gid=1064389815#gid=1064389815", forms: [] },
+            { title: "Relatório - Pesquisa de Satisfação dos Pacientes", sector: "Coordenação", link: "https://docs.google.com/spreadsheets/d/1KwY0z_M4VXZXZMSfngJe71rXkRbJhx7_xxBRsCy4LPw/edit?resourcekey#gid=2085666969", forms: [
+                { title: "01 - Unidade NTO", link: "https://forms.gle/zsCoopVRRj6XcWMR9" },
+                { title: "03 - Unidade Crato", link: "https://forms.gle/pGCiHm5w2LfQY4tB8" },
+                { title: "04 - Unidade Vacinas", link: "https://forms.gle/gVBHJLZUaUxHqSmg7" },
+                { title: "05 - Unidade Novo Juazeiro", link: "https://forms.gle/Ps2VhMPtr5GJ5vDM8" },
+                { title: "06 - Unidade Milagres", link: "https://forms.gle/aP2ZcMvj6pDUjmfJ7" },
+                { title: "09 - Unidade Barro", link: "https://forms.gle/xjicYdfHfwzFrmXd8" },
+                { title: "10 - Unidade Office Cariri", link: "https://forms.gle/wfHZpWDZNCY9HsBq7" },
+                { title: "11 - Unidade Canal do Cliente", link: "https://forms.gle/cRAF5F2XyD8VtPt38" },
+                { title: "12 - Unidade Caririaçu", link: "https://forms.gle/5SRoUbVC6U61e2dFA" },
+                { title: "13 - Unidade Campos Sales", link: "https://forms.gle/nyAKEcE6Z74vJMUa9" },
+                { title: "14 - Unidade Nova Olinda", link: "https://forms.gle/5aphHhYFsVdU2ZUa6" },
+                { title: "16 - Unidade Araripe", link: "https://forms.gle/uDmSjct3qQpWVtiM8" },
+                { title: "23 - Unidade Salesianos", link: "https://forms.gle/w61MXrUbzErcS9Da8" },
+                { title: "62 - Unidade Clemir Arrais", link: "https://forms.gle/V69YkenZhaXTuNdNA" },
+                { title: "88 - Unidade Unicardio", link: "https://forms.gle/DNeQiFUBqMCZ2QgRA" },
+                { title: "97 - Unidade Endoclinic", link: "https://forms.gle/DPhy3iUtT6oqBTdS9" }
+            ] },
+            { title: "Relatório - Dados e Resultados de Campanhas do Marketing", sector: "Marketing", link: "https://docs.google.com/spreadsheets/d/1birVjwMVWPcnatJqJBtEdxEC7qPPKDQOC6WJqcaMka8/edit?gid=441841903#gid=441841903", forms: [] },
+            { title: "Estoque - Insumos dos Apoios", sector: "Pré-Analítico", link: "https://docs.google.com/spreadsheets/d/15xQGbkdJkjYFU0P8fnlg3l4jnDx0WAVV9iACuPLYti8/edit?gid=814613652#gid=814613652", forms: [] },
+            { title: "Relatório - Ocorrência dos Colaboradores", sector: "Pré-Analítico", link: "https://docs.google.com/spreadsheets/d/1lnVcRz4P1TM4HjbYt30fdW5MvSWNZVUZ8eOBinDi0dA/edit?gid=1064389815#gid=1064389815", forms: [] },
+            { title: "Relatório - Produtividade dos Coletadores", sector: "Pré-Analítico", link: "https://docs.google.com/spreadsheets/d/1dXmUFFIfcGOmwCQ_mSs-ArAi_GGUouOlWxYDSfgB-oo/edit#gid=320891293", forms: [] },
+            { title: "Dados - Protocolo de Atestado", sector: "RH", link: "https://docs.google.com/spreadsheets/d/1fsQd5UHohQil-sVFrMNkKh275PG3wAIKqeITMTsQPgI/edit", forms: [{ title: "", link: "https://forms.gle/fa2GpM5J3EQGRcZi6" }] },
+            { title: "Dados - Registro de Ponto (Colaboradores)", sector: "RH", link: "https://docs.google.com/spreadsheets/d/1vTxY45YZitpfrKxytaggczHasq4J4iNgWVoC1P8em4I/edit?resourcekey=&gid=817033391#gid=817033391", forms: [{ title: "", link: "https://forms.gle/qW9A2RZYiwUy5jKn9" }] },
+            { title: "Dados - Registro de Ponto (Estagiários)", sector: "RH", link: "https://docs.google.com/spreadsheets/d/18KE2POQXNN2DnRsuyzYx5JVoLteIqeOon_6QO_JRq8s/edit?resourcekey=&gid=817033391#gid=817033391", forms: [{ title: "", link: "https://docs.google.com/forms/d/e/1FAIpQLSesVzrk416wfgqXD47r4znD0kS_QB0m9olq3ndv814_QbYNoQ/viewform" }] },
+            { title: "Dados - Registro de Ponto (Externo)", sector: "RH", link: "https://docs.google.com/spreadsheets/d/17dNVutUQmpNKQDo-3J6ZUu1yKJXqYV4TlWrEHautmPo/edit?gid=817033391#gid=817033391", forms: [{ title: "", link: "https://forms.gle/LfgBAhFN4kuqeG3u9" }] },
+            { title: "Relatório - Banco de Horas - Ponto Digital", sector: "RH", link: "https://docs.google.com/spreadsheets/d/1SQa3BaoMcV8d0KgzPlMfKLAGoD5BMkiJsGgIj-4BN0M/edit?gid=441841903#gid=441841903", forms: [] },
+            { title: "Dados - Controle de Compras do T.I", sector: "Tecnologia da Informação", link: "https://docs.google.com/spreadsheets/d/1SdgmZnuNL45Sym1K_QPLHRsKC3YP8J2o-XoG0x8XIRg/edit?gid=1923083969#gid=1923083969", forms: [] },
+            { title: "Dados - Solicitação de Compras ao T.I", sector: "Tecnologia da Informação", link: "https://docs.google.com/spreadsheets/d/1FtFX3o0_ua37P2TmuJFNK7NNHgRa6rFfY5DaLxLYADo/edit?gid=2000886603#gid=2000886603", forms: [] },
+            { title: "Gestão - Rotina de Vacinas", sector: "Vacinas", link: "https://docs.google.com/spreadsheets/d/1n1DIWxLz-gPATm8gdO0mZEzuwOVDgykTkn2iKJ8TWfg/edit", forms: [] },
+            { title: "Relatório - Faturamento das Vacinas", sector: "Vacinas", link: "https://docs.google.com/spreadsheets/d/1HaunPIYM_AN0ZIZCUT1QD52FKuObXXotOWCvPDzCLZ8/edit?gid=441841903#gid=441841903", forms: [] },
+            { title: "Dados - Manutenção dos Arcondicionados", sector: "Adminstrativo", link: "https://docs.google.com/spreadsheets/d/1HaunPIYM_AN0ZIZCUT1QD52FKuObXXotOWCvPDzCLZ8/edit?gid=441841903#gid=441841903", forms: [{ title: "", link: "https://forms.gle/HvT8rFk4mvacrx1v9" }] }
+        ];
+
+        // Initialize favorites from localStorage
+        let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
         let selectedSector = '';
+        let showFavorites = false;
 
-        function saveData() {
-            localStorage.setItem('spreadsheets', JSON.stringify(spreadsheets));
-            localStorage.setItem('sectors', JSON.stringify(sectors));
-        }
+        // Sort spreadsheets by sector then by title
+        spreadsheets.sort((a, b) => {
+            if (a.sector < b.sector) return -1;
+            if (a.sector > b.sector) return 1;
+            if (a.title < b.title) return -1;
+            if (a.title > b.title) return 1;
+            return 0;
+        });
 
-        function populateSectors() {
-            const sectorSelect = document.getElementById('sector');
-            const editSectorSelect = document.getElementById('editSector');
-            const sectorDropdown = document.getElementById('sectorDropdown');
-            sectorSelect.innerHTML = '';
-            editSectorSelect.innerHTML = '';
-            sectorDropdown.innerHTML = `
-                <a href="#" class="bg-blue" onclick="filterBySector('')">Todos</a>
-            `;
-            sectors.forEach(sector => {
-                const option = document.createElement('option');
-                option.value = sector;
-                option.textContent = sector;
-                sectorSelect.appendChild(option);
+        // Populate sector dropdown
+        const uniqueSectors = [...new Set(spreadsheets.map(sheet => sheet.sector))].sort();
+        const sectorDropdown = document.getElementById('sectorDropdown');
+        sectorDropdown.innerHTML = `<a href="#" class="block px-4 py-2 bg-blue-100 hover:bg-blue-200" onclick="filterBySector('')">Todos</a>`;
+        uniqueSectors.forEach(sector => {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.className = 'block px-4 py-2 hover:bg-gray-100';
+            a.textContent = sector;
+            a.onclick = () => filterBySector(sector);
+            sectorDropdown.appendChild(a);
+        });
 
-                const editOption = document.createElement('option');
-                editOption.value = sector;
-                editOption.textContent = sector;
-                editSectorSelect.appendChild(editOption);
-
-                const a = document.createElement('a');
-                a.href = '#';
-                a.className = '';
-                a.textContent = sector;
-                a.onclick = () => filterBySector(sector);
-                sectorDropdown.appendChild(a);
-            });
-            const manageLink = document.createElement('a');
-            manageLink.href = '#';
-            manageLink.className = 'bg-green';
-            manageLink.textContent = 'Gerenciar Setores';
-            manageLink.onclick = () => openModal('manageSectorsModal');
-            sectorDropdown.appendChild(manageLink);
-        }
-
-        function populateSectorList() {
-            const sectorList = document.getElementById('sectorList');
-            sectorList.innerHTML = '';
-            sectors.forEach(sector => {
-                const div = document.createElement('div');
-                div.className = 'sector-item';
-                div.draggable = true;
-                div.innerHTML = `
-                    <span>${sector}</span>
-                    <span class="delete-button" onclick="openDeleteSectorModal('${sector}')">X</span>
-                `;
-                div.addEventListener('dragstart', handleDragStart);
-                div.addEventListener('dragover', handleDragOver);
-                div.addEventListener('drop', handleDrop);
-                div.addEventListener('dragend', handleDragEnd);
-                sectorList.appendChild(div);
-            });
-        }
-
-        let draggedItem = null;
-
-        function handleDragStart(e) {
-            draggedItem = e.target;
-            e.target.classList.add('dragging');
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const target = e.target.closest('.sector-item');
-            if (draggedItem && target && draggedItem !== target) {
-                const allItems = Array.from(document.querySelectorAll('.sector-item'));
-                const draggedIndex = allItems.indexOf(draggedItem);
-                const targetIndex = allItems.indexOf(target);
-                const [removed] = sectors.splice(draggedIndex, 1);
-                sectors.splice(targetIndex, 0, removed);
-                saveData();
-                populateSectors();
-                populateSectorList();
-            }
-        }
-
-        function handleDragEnd(e) {
-            e.target.classList.remove('dragging');
-            draggedItem = null;
-        }
-
-        function renderCards() {
-            const spreadsheetList = document.getElementById('spreadsheetList');
-            spreadsheetList.innerHTML = '';
-            spreadsheets.forEach((sheet, index) => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.dataset.sector = sheet.sector;
-                card.innerHTML = `
-                    <div class="flex">
-                        <h2>${sheet.title}</h2>
-                        <div class="button-container">
-                            <span class="delete-button" onclick="openDeleteModal(${index})">X</span>
-                            <span class="edit-button" onclick="openEditModal(${index})">&#9998;</span>
+        // Render cards
+        const spreadsheetList = document.getElementById('spreadsheetList');
+        spreadsheets.forEach((sheet, index) => {
+            const card = document.createElement('div');
+            card.className = 'card bg-white p-6 rounded-lg shadow-md';
+            card.dataset.sector = sheet.sector;
+            card.dataset.index = index;
+            const isFavorited = favorites.includes(index);
+            let formHtml = '';
+            if (sheet.forms && sheet.forms.length > 0) {
+                if (sheet.forms.length === 1) {
+                    formHtml = `<a href="${sheet.forms[0].link}" target="_blank" class="mt-4 form-button ml-4">Acessar Formulário</a>`;
+                } else {
+                    formHtml = `<div class="form-dropdown inline-block ml-4">
+                        <a href="#" class="mt-4 form-button">Acessar Formulário</a>
+                        <div class="form-dropdown-content rounded-lg">
+                            ${sheet.forms.map(form => `<a href="${form.link}" target="_blank" class="block px-4 py-2 hover:bg-gray-100">${form.title}</a>`).join('')}
                         </div>
-                    </div>
-                    <p>Setor: ${sheet.sector}</p>
-                    <a href="${sheet.link}" target="_blank" class="modern-button">Acessar Planilha</a>
-                `;
-                spreadsheetList.appendChild(card);
-            });
-        }
-
-        function openModal(modalId) {
-            document.getElementById(modalId).style.display = 'block';
-            if (modalId === 'manageSectorsModal') {
-                populateSectorList();
+                    </div>`;
+                }
             }
-        }
+            card.innerHTML = `
+                <span class="star ${isFavorited ? 'favorited' : ''}" onclick="toggleFavorite(${index})">&#9733;</span>
+                <h2 class="text-lg font-semibold text-blue-900">${sheet.title}</h2>
+                <p class="text-gray-600">Setor: ${sheet.sector}</p>
+                <a href="${sheet.link}" target="_blank" class="mt-4 modern-button">Acessar Planilha</a>
+                ${formHtml}
+            `;
+            spreadsheetList.appendChild(card);
+        });
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        function openDeleteModal(index) {
-            deleteIndex = index;
-            openModal('confirmDeleteModal');
-        }
-
-        function openEditModal(index) {
-            editIndex = index;
-            const sheet = spreadsheets[index];
-            document.getElementById('editTitle').value = sheet.title;
-            document.getElementById('editSector').value = sheet.sector;
-            document.getElementById('editLink').value = sheet.link;
-            openModal('editSpreadsheetModal');
-        }
-
-        function openDeleteSectorModal(sector) {
-            const isUsed = spreadsheets.some(sheet => sheet.sector === sector);
-            const messageElement = document.getElementById('confirmDeleteSectorMessage');
-            if (isUsed) {
-                messageElement.textContent = `Não é possível remover o setor "${sector}" porque ele está sendo usado por uma ou mais planilhas.`;
-                document.getElementById('confirmDeleteSectorBtn').style.display = 'none';
+        // Toggle favorite status
+        function toggleFavorite(index) {
+            if (favorites.includes(index)) {
+                favorites = favorites.filter(fav => fav !== index);
             } else {
-                messageElement.textContent = `Tem certeza de que deseja remover o setor "${sector}"?`;
-                document.getElementById('confirmDeleteSectorBtn').style.display = 'inline-block';
-                deleteSectorName = sector;
+                favorites.push(index);
             }
-            openModal('confirmDeleteSectorModal');
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            updateCards();
         }
 
-        document.getElementById('addSpreadsheetBtn').addEventListener('click', () => openModal('addSpreadsheetModal'));
-
-        document.getElementById('addSectorBtn').addEventListener('click', () => openModal('addSectorModal'));
-
-        document.getElementById('addSpreadsheetForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const title = document.getElementById('title').value;
-            const sector = document.getElementById('sector').value;
-            const link = document.getElementById('link').value;
-            spreadsheets.push({ title, sector, link });
-            saveData();
-            renderCards();
-            closeModal('addSpreadsheetModal');
-            document.getElementById('addSpreadsheetForm').reset();
-        });
-
-        document.getElementById('editSpreadsheetForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (editIndex !== -1) {
-                spreadsheets[editIndex].title = document.getElementById('editTitle').value;
-                spreadsheets[editIndex].sector = document.getElementById('editSector').value;
-                spreadsheets[editIndex].link = document.getElementById('editLink').value;
-                saveData();
-                renderCards();
-                editIndex = -1;
-            }
-            closeModal('editSpreadsheetModal');
-        });
-
-        document.getElementById('addSectorForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const newSector = document.getElementById('newSector').value;
-            if (!sectors.includes(newSector)) {
-                sectors.push(newSector);
-                saveData();
-                populateSectors();
-                populateSectorList();
-            }
-            closeModal('addSectorModal');
-            document.getElementById('addSectorForm').reset();
-        });
-
-        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
-            if (deleteIndex !== -1) {
-                spreadsheets.splice(deleteIndex, 1);
-                saveData();
-                renderCards();
-                deleteIndex = -1;
-            }
-            closeModal('confirmDeleteModal');
-        });
-
-        document.getElementById('confirmDeleteSectorBtn').addEventListener('click', () => {
-            if (deleteSectorName) {
-                sectors = sectors.filter(sector => sector !== deleteSectorName);
-                saveData();
-                populateSectors();
-                populateSectorList();
-                deleteSectorName = '';
-            }
-            closeModal('confirmDeleteSectorModal');
-        });
-
-        const searchInput = document.getElementById('searchInput');
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
+        // Update card display based on filters
+        function updateCards() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const cards = document.getElementsByClassName('card');
             Array.from(cards).forEach(card => {
                 const title = card.querySelector('h2').textContent.toLowerCase();
                 const cardSector = card.getAttribute('data-sector');
+                const cardIndex = parseInt(card.getAttribute('data-index'));
                 const matchesSearch = title.includes(searchTerm);
                 const matchesSector = selectedSector === '' || cardSector === selectedSector;
-                card.style.display = matchesSearch && matchesSector ? '' : 'none';
-            });
-        });
-
-        function filterBySector(sector) {
-            selectedSector = sector;
-            document.getElementById('selectedSector').textContent = sector || 'Filtrar por Setor';
-            const cards = document.getElementsByClassName('card');
-            const searchTerm = searchInput.value.toLowerCase();
-            Array.from(cards).forEach(card => {
-                const title = card.querySelector('h2').textContent.toLowerCase();
-                const cardSector = card.getAttribute('data-sector');
-                const matchesSearch = title.includes(searchTerm);
-                const matchesSector = sector === '' || cardSector === sector;
-                card.style.display = matchesSearch && matchesSector ? '' : 'none';
+                const matchesFavorites = !showFavorites || favorites.includes(cardIndex);
+                card.style.display = matchesSearch && matchesSector && matchesFavorites ? '' : 'none';
+                const star = card.querySelector('.star');
+                if (star) {
+                    star.classList.toggle('favorited', favorites.includes(cardIndex));
+                }
             });
         }
 
-        populateSectors();
-        populateSectorList();
-        renderCards();
+        // Search input handler
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('input', updateCards);
+
+        // Sector filter handler
+        function filterBySector(sector) {
+            selectedSector = sector;
+            showFavorites = false;
+            document.getElementById('selectedSector').textContent = sector || 'Filtrar por Setor';
+            document.getElementById('favoriteFilter').classList.remove('active');
+            updateCards();
+        }
+
+        // Favorites filter handler
+        function filterByFavorites() {
+            showFavorites = !showFavorites;
+            selectedSector = '';
+            document.getElementById('selectedSector').textContent = 'Filtrar por Setor';
+            const favoriteButton = document.getElementById('favoriteFilter');
+            favoriteButton.classList.toggle('active', showFavorites);
+            updateCards();
+        }
+
+        // Initialize
+        updateCards();
     </script>
 </body>
 </html>
